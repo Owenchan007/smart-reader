@@ -66,6 +66,12 @@ interface ElectronAPI {
   chatWithAI: (params: { messages: Array<{ role: string; content: string }>; model?: string; apiKey: string }) => Promise<string>
   onStreamChunk: (callback: (chunk: string) => void) => () => void
   onStreamEnd: (callback: () => void) => () => void
+  selectObsidianVault: () => Promise<string | null>
+  exportBookToObsidian: (params: { bookId: number; apiKey: string; model?: string }) =>
+    Promise<{ success: boolean; filesWritten: string[] }>
+  exportAllToObsidian: (params: { apiKey: string; model?: string }) =>
+    Promise<{ success: boolean; booksExported: number; filesWritten: string[] }>
+  onExportProgress: (callback: (info: { step: number; total: number; message: string }) => void) => () => void
   getSettings: () => Promise<Record<string, string>>
   saveSetting: (key: string, value: string) => Promise<boolean>
 }

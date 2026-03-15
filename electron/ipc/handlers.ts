@@ -3,6 +3,7 @@ import { getDb } from '../services/db'
 import { copyBookToAppData, saveBookRecord, saveChunks, searchChunks, extractEpubContent } from '../services/epub-parser'
 import { chatWithAIStream } from '../services/ai-client'
 import { transcribeAudio, isModelDownloaded, downloadModel } from '../services/whisper'
+import { exportBookToObsidian, exportAllBooksToObsidian } from '../services/obsidian-export'
 import fs from 'fs'
 
 export function registerIpcHandlers() {
@@ -193,6 +194,57 @@ export function registerIpcHandlers() {
       return await transcribeAudio(buffer)
     } catch (err: any) {
       console.error('[IPC whisper] Error:', err.message)
+      throw err
+    }
+  })
+
+  // === Obsidian export handlers ===
+  ipcMain.handle('obsidian:selectVault', async () => {
+    const result = await dialog.showOpenDialog({
+      properties: ['openDirectory'],
+      title: '选择 Obsidian Vault 文件夹',
+    })
+    if (result.canceled || result.filePaths.length === 0) return null
+
+    const vaultPath = result.filePaths[0]
+    const db = getDb()
+    db.prepare('INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)').run('obsidianVaultPath', vaultPath)
+    return vaultPath
+  })
+
+  ipcMain.handle('obsidian:exportBook', async (_event, params: {
+    bookId: number; apiKey: string; model?: string
+  }) => {
+    const db = getDb()
+    const row = db.prepare("SELECT value FROM settings WHERE key = 'obsidianVaultPath'").get() as any
+    if (!row?.value) throw new Error('请先选择 Obsidian Vault 路径')
+
+    try {
+      const filesWritten = await exportBookToObsidian({
+        bookId: params.bookId,
+        vaultPath: row.value,
+        apiKey: params.apiKey,
+        model: params.model,
+      })
+      return { success: true, filesWritten }
+    } catch (err: any) {
+      console.error('[IPC obsidian:exportBook] Error:', err.message)
+      throw err
+    }
+  })
+
+  ipcMain.handle('obsidian:exportAll', async (_event, params: {
+    apiKey: string; model?: string
+  }) => {
+    const db = getDb()
+    const row = db.prepare("SELECT value FROM settings WHERE key = 'obsidianVaultPath'").get() as any
+    if (!row?.value) throw new Error('请先选择 Obsidian Vault 路径')
+
+    try {
+      const result = await exportAllBooksToObsidian(row.value, params.apiKey, params.model)
+      return { success: true, ...result }
+    } catch (err: any) {
+      console.error('[IPC obsidian:exportAll] Error:', err.message)
       throw err
     }
   })

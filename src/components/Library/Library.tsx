@@ -1,12 +1,15 @@
 import React, { useEffect, useState, useCallback } from 'react'
-import { Button, message, Popconfirm, Empty } from 'antd'
-import { PlusOutlined, DeleteOutlined, BookOutlined } from '@ant-design/icons'
+import { Button, message, Popconfirm, Empty, Tooltip, Modal, Progress } from 'antd'
+import { PlusOutlined, DeleteOutlined, BookOutlined, ExportOutlined } from '@ant-design/icons'
 import { useStore } from '../../stores/useStore'
 
 const Library: React.FC = () => {
   const [books, setBooks] = useState<Book[]>([])
   const [loading, setLoading] = useState(false)
-  const { setCurrentBook, setView } = useStore()
+  const [exporting, setExporting] = useState<number | 'all' | null>(null)
+  const [exportProgress, setExportProgress] = useState({ step: 0, total: 0, message: '' })
+  const [vaultPath, setVaultPath] = useState('')
+  const { setCurrentBook, setView, apiKey, aiModel } = useStore()
 
   const loadBooks = useCallback(async () => {
     const list = await window.electronAPI.getBooks()
@@ -15,7 +18,19 @@ const Library: React.FC = () => {
 
   useEffect(() => {
     loadBooks()
+    // Load saved vault path
+    window.electronAPI.getSettings().then((s) => {
+      if (s.obsidianVaultPath) setVaultPath(s.obsidianVaultPath)
+    })
   }, [loadBooks])
+
+  // Listen for export progress
+  useEffect(() => {
+    const unsub = window.electronAPI.onExportProgress((info) => {
+      setExportProgress(info)
+    })
+    return unsub
+  }, [])
 
   const handleImport = async () => {
     setLoading(true)
@@ -34,7 +49,6 @@ const Library: React.FC = () => {
   }
 
   const handleOpenBook = async (book: Book) => {
-    // Fetch latest from DB to get up-to-date last_position
     const latest = await window.electronAPI.getBook(book.id)
     setCurrentBook(latest || book)
     setView('reader')
@@ -46,19 +60,107 @@ const Library: React.FC = () => {
     loadBooks()
   }
 
+  /** Ensure vault path is set, return path or null */
+  const ensureVaultPath = async (): Promise<string | null> => {
+    if (vaultPath) return vaultPath
+    const selected = await window.electronAPI.selectObsidianVault()
+    if (selected) {
+      setVaultPath(selected)
+      return selected
+    }
+    return null
+  }
+
+  const handleExportBook = async (book: Book) => {
+    if (!apiKey) {
+      message.warning('请先在设置中配置 API Key')
+      return
+    }
+    const vault = await ensureVaultPath()
+    if (!vault) return
+
+    setExporting(book.id)
+    setExportProgress({ step: 0, total: 0, message: '准备导出...' })
+    try {
+      const result = await window.electronAPI.exportBookToObsidian({
+        bookId: book.id,
+        apiKey,
+        model: aiModel,
+      })
+      message.success(`《${book.title}》已导出到 Obsidian（${result.filesWritten.length} 个文件）`)
+    } catch (err: any) {
+      message.error(`导出失败: ${err.message}`)
+    }
+    setExporting(null)
+  }
+
+  const handleExportAll = async () => {
+    if (!apiKey) {
+      message.warning('请先在设置中配置 API Key')
+      return
+    }
+    if (books.length === 0) {
+      message.info('书库为空，没有可导出的书籍')
+      return
+    }
+    const vault = await ensureVaultPath()
+    if (!vault) return
+
+    setExporting('all')
+    setExportProgress({ step: 0, total: books.length, message: '准备导出...' })
+    try {
+      const result = await window.electronAPI.exportAllToObsidian({
+        apiKey,
+        model: aiModel,
+      })
+      message.success(`已导出 ${result.booksExported} 本书到 Obsidian`)
+    } catch (err: any) {
+      message.error(`导出失败: ${err.message}`)
+    }
+    setExporting(null)
+  }
+
+  const handleChangeVault = async () => {
+    const selected = await window.electronAPI.selectObsidianVault()
+    if (selected) {
+      setVaultPath(selected)
+      message.success('Vault 路径已更新')
+    }
+  }
+
   return (
     <div className="library-container">
       <div className="library-header">
         <h2>我的书库</h2>
-        <Button
-          type="primary"
-          icon={<PlusOutlined />}
-          onClick={handleImport}
-          loading={loading}
-        >
-          导入 EPUB
-        </Button>
+        <div style={{ display: 'flex', gap: 8 }}>
+          <Button
+            icon={<ExportOutlined />}
+            onClick={handleExportAll}
+            loading={exporting === 'all'}
+            disabled={exporting !== null || books.length === 0}
+          >
+            导出到 Obsidian
+          </Button>
+          <Button
+            type="primary"
+            icon={<PlusOutlined />}
+            onClick={handleImport}
+            loading={loading}
+          >
+            导入 EPUB
+          </Button>
+        </div>
       </div>
+
+      {/* Vault path display */}
+      {vaultPath && (
+        <div style={{ fontSize: 12, color: '#999', marginBottom: 16, display: 'flex', alignItems: 'center', gap: 8 }}>
+          <span>Obsidian Vault：{vaultPath}</span>
+          <Button type="link" size="small" onClick={handleChangeVault} style={{ fontSize: 12, padding: 0 }}>
+            更改
+          </Button>
+        </div>
+      )}
 
       {books.length === 0 ? (
         <Empty
@@ -81,20 +183,54 @@ const Library: React.FC = () => {
                 <div className="book-title" title={book.title}>{book.title}</div>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                   <span className="book-author">{book.author}</span>
-                  <Popconfirm
-                    title="确定删除这本书？"
-                    onConfirm={() => handleDelete(book.id)}
-                    okText="删除"
-                    cancelText="取消"
-                  >
-                    <Button type="text" size="small" icon={<DeleteOutlined />} danger />
-                  </Popconfirm>
+                  <div>
+                    <Tooltip title="导出到 Obsidian">
+                      <Button
+                        type="text"
+                        size="small"
+                        icon={<ExportOutlined />}
+                        onClick={() => handleExportBook(book)}
+                        loading={exporting === book.id}
+                        disabled={exporting !== null}
+                      />
+                    </Tooltip>
+                    <Popconfirm
+                      title="确定删除这本书？"
+                      onConfirm={() => handleDelete(book.id)}
+                      okText="删除"
+                      cancelText="取消"
+                    >
+                      <Button type="text" size="small" icon={<DeleteOutlined />} danger />
+                    </Popconfirm>
+                  </div>
                 </div>
               </div>
             </div>
           ))}
         </div>
       )}
+
+      {/* Export progress modal */}
+      <Modal
+        open={exporting !== null}
+        title="导出到 Obsidian"
+        footer={null}
+        closable={false}
+        maskClosable={false}
+        width={400}
+      >
+        <div style={{ padding: '12px 0' }}>
+          <p style={{ marginBottom: 12 }}>{exportProgress.message}</p>
+          {exportProgress.total > 0 && (
+            <Progress
+              percent={Math.round((exportProgress.step / exportProgress.total) * 100)}
+              size="small"
+              status="active"
+              format={() => `${exportProgress.step} / ${exportProgress.total}`}
+            />
+          )}
+        </div>
+      </Modal>
     </div>
   )
 }

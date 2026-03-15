@@ -14,6 +14,35 @@ interface ChatParams {
 
 const API_URL = 'https://api.lkeap.cloud.tencent.com/coding/v3/chat/completions'
 
+/** Non-streaming AI call for background tasks (export, etc.) */
+export async function chatWithAISimple(params: ChatParams): Promise<string> {
+  const { messages, model = 'hunyuan-turbos', apiKey } = params
+
+  const fetchFn = net.fetch ?? globalThis.fetch
+  const response = await fetchFn(API_URL, {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${apiKey}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      model,
+      messages,
+      temperature: 0.7,
+      max_tokens: 4096,
+      stream: false,
+    }),
+  })
+
+  if (!response.ok) {
+    const errorText = await response.text()
+    throw new Error(`AI API 错误 (${response.status}): ${errorText}`)
+  }
+
+  const json = await response.json()
+  return json.choices?.[0]?.message?.content || ''
+}
+
 export async function chatWithAIStream(params: ChatParams): Promise<string> {
   const { messages, model = 'hunyuan-turbos', apiKey } = params
   const win = BrowserWindow.getFocusedWindow() || BrowserWindow.getAllWindows()[0]

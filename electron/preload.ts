@@ -63,6 +63,18 @@ contextBridge.exposeInMainWorld('electronAPI', {
     return () => ipcRenderer.removeListener('ai:stream-end', handler)
   },
 
+  // Obsidian export
+  selectObsidianVault: () => ipcRenderer.invoke('obsidian:selectVault'),
+  exportBookToObsidian: (params: { bookId: number; apiKey: string; model?: string }) =>
+    ipcRenderer.invoke('obsidian:exportBook', params),
+  exportAllToObsidian: (params: { apiKey: string; model?: string }) =>
+    ipcRenderer.invoke('obsidian:exportAll', params),
+  onExportProgress: (callback: (info: { step: number; total: number; message: string }) => void) => {
+    const handler = (_event: any, info: any) => callback(info)
+    ipcRenderer.on('obsidian:export-progress', handler)
+    return () => ipcRenderer.removeListener('obsidian:export-progress', handler)
+  },
+
   // Settings
   getSettings: () => ipcRenderer.invoke('settings:get'),
   saveSetting: (key: string, value: string) =>
