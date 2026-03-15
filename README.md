@@ -2,8 +2,6 @@
 
 一款桌面端智能读书笔记应用，集 EPUB 阅读、AI 问答、语音笔记于一体。
 
-![screenshot](./screenshots/reader.png)
-
 ## 功能特性
 
 ### EPUB 阅读器
