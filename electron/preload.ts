@@ -7,6 +7,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   getBooks: () => ipcRenderer.invoke('book:list'),
   getBook: (id: number) => ipcRenderer.invoke('book:get', id),
   deleteBook: (id: number) => ipcRenderer.invoke('book:delete', id),
+  renameBook: (id: number, title: string) => ipcRenderer.invoke('book:rename', id, title),
   readBookFile: (filePath: string) => ipcRenderer.invoke('book:readFile', filePath),
   updateBookProgress: (id: number, position: string) =>
     ipcRenderer.invoke('book:updateProgress', id, position),

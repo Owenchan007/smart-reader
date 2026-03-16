@@ -52,6 +52,10 @@ const ReaderView: React.FC = () => {
         'font-size': `${readerSettings.fontSize}px !important`,
         'font-family': `${readerSettings.fontFamily} !important`,
       },
+      'img': {
+        'max-width': '100% !important',
+        'height': 'auto !important',
+      },
     })
   }, [readerSettings])
 
@@ -70,6 +74,34 @@ const ReaderView: React.FC = () => {
         const book = ePub(arrayBuffer)
         bookRef.current = book
         await book.ready
+
+        // Monkey-patch: fix epubjs failing on extensionless XHTML files.
+        // When a file has no extension, archive.request() can't determine
+        // the type and returns raw text instead of a parsed XMLDocument.
+        // We patch it to try XHTML parsing for spine item URLs.
+        const archive = (book as any).archive
+        if (archive) {
+          const spineHrefs = new Set<string>()
+          const spine = (book as any).spine
+          if (spine?.items) {
+            spine.items.forEach((item: any) => {
+              if (item.url) spineHrefs.add(item.url)
+            })
+          }
+
+          const origRequest = archive.request.bind(archive)
+          archive.request = function(url: string, type?: string) {
+            // For spine items without extension, force XHTML type
+            if (!type && spineHrefs.has(url)) {
+              const ext = url.split('.').pop()
+              const hasExt = ext && ext !== url && ext.length <= 5 && /^[a-z]+$/i.test(ext)
+              if (!hasExt) {
+                return origRequest(url, 'xhtml')
+              }
+            }
+            return origRequest(url, type)
+          }
+        }
 
         if (viewerRef.current) viewerRef.current.innerHTML = ''
 
@@ -107,7 +139,10 @@ const ReaderView: React.FC = () => {
             const href = location.start.href
             if (href) {
               setCurrentChapterHref(href)
-              const match = tocRef.current.find((t) => href.includes(t.href) || t.href.includes(href))
+              const matches = tocRef.current.filter((t) => href.includes(t.href) || t.href.includes(href))
+              const match = matches.length > 0
+                ? matches.reduce((best, cur) => cur.href.length > best.href.length ? cur : best)
+                : undefined
               setStoreChapter(href, match?.label || '')
             }
           }

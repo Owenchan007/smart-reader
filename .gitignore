@@ -7,3 +7,4 @@ release
 *.dmg
 *.blockmap
 start.command
+.native-rebuilt

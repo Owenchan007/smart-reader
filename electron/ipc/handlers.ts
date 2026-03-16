@@ -73,6 +73,13 @@ export function registerIpcHandlers() {
     return new Uint8Array(buffer)
   })
 
+  ipcMain.handle('book:rename', (_event, id: number, title: string) => {
+    const db = getDb()
+    db.prepare('UPDATE books SET title = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?')
+      .run(title, id)
+    return true
+  })
+
   ipcMain.handle('book:updateProgress', (_event, id: number, position: string) => {
     const db = getDb()
     db.prepare('UPDATE books SET last_position = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?')

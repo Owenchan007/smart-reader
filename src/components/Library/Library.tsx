@@ -1,6 +1,6 @@
-import React, { useEffect, useState, useCallback } from 'react'
-import { Button, message, Popconfirm, Empty, Tooltip, Modal, Progress } from 'antd'
-import { PlusOutlined, DeleteOutlined, BookOutlined, ExportOutlined } from '@ant-design/icons'
+import React, { useEffect, useState, useCallback, useRef } from 'react'
+import { Button, message, Popconfirm, Empty, Tooltip, Modal, Progress, Input } from 'antd'
+import { PlusOutlined, DeleteOutlined, BookOutlined, ExportOutlined, EditOutlined } from '@ant-design/icons'
 import { useStore } from '../../stores/useStore'
 
 const Library: React.FC = () => {
@@ -9,6 +9,9 @@ const Library: React.FC = () => {
   const [exporting, setExporting] = useState<number | 'all' | null>(null)
   const [exportProgress, setExportProgress] = useState({ step: 0, total: 0, message: '' })
   const [vaultPath, setVaultPath] = useState('')
+  const [contextMenu, setContextMenu] = useState<{ x: number; y: number; book: Book } | null>(null)
+  const [renaming, setRenaming] = useState<{ book: Book; title: string } | null>(null)
+  const contextMenuRef = useRef<HTMLDivElement>(null)
   const { setCurrentBook, setView, apiKey, aiModel } = useStore()
 
   const loadBooks = useCallback(async () => {
@@ -120,6 +123,47 @@ const Library: React.FC = () => {
     setExporting(null)
   }
 
+  // Right-click context menu
+  const handleContextMenu = (e: React.MouseEvent, book: Book) => {
+    e.preventDefault()
+    setContextMenu({ x: e.clientX, y: e.clientY, book })
+  }
+
+  // Close context menu when clicking elsewhere
+  useEffect(() => {
+    const handleClick = (e: MouseEvent) => {
+      if (contextMenuRef.current && !contextMenuRef.current.contains(e.target as Node)) {
+        setContextMenu(null)
+      }
+    }
+    if (contextMenu) {
+      document.addEventListener('mousedown', handleClick)
+    }
+    return () => document.removeEventListener('mousedown', handleClick)
+  }, [contextMenu])
+
+  const handleStartRename = (book: Book) => {
+    setContextMenu(null)
+    setRenaming({ book, title: book.title })
+  }
+
+  const handleConfirmRename = async () => {
+    if (!renaming) return
+    const newTitle = renaming.title.trim()
+    if (!newTitle) {
+      message.warning('书名不能为空')
+      return
+    }
+    if (newTitle === renaming.book.title) {
+      setRenaming(null)
+      return
+    }
+    await window.electronAPI.renameBook(renaming.book.id, newTitle)
+    message.success('书名已更新')
+    setRenaming(null)
+    loadBooks()
+  }
+
   const handleChangeVault = async () => {
     const selected = await window.electronAPI.selectObsidianVault()
     if (selected) {
@@ -171,7 +215,7 @@ const Library: React.FC = () => {
       ) : (
         <div className="book-grid">
           {books.map((book) => (
-            <div key={book.id} className="book-card">
+            <div key={book.id} className="book-card" onContextMenu={(e) => handleContextMenu(e, book)}>
               <div className="book-cover" onClick={() => handleOpenBook(book)}>
                 {book.cover_image ? (
                   <img src={book.cover_image} alt={book.title} />
@@ -209,6 +253,40 @@ const Library: React.FC = () => {
           ))}
         </div>
       )}
+
+      {/* Right-click context menu */}
+      {contextMenu && (
+        <div
+          ref={contextMenuRef}
+          className="context-menu"
+          style={{ top: contextMenu.y, left: contextMenu.x }}
+        >
+          <div className="context-menu-item" onClick={() => handleStartRename(contextMenu.book)}>
+            <EditOutlined style={{ marginRight: 8 }} />
+            重命名
+          </div>
+        </div>
+      )}
+
+      {/* Rename modal */}
+      <Modal
+        open={renaming !== null}
+        title="重命名书籍"
+        okText="确定"
+        cancelText="取消"
+        onOk={handleConfirmRename}
+        onCancel={() => setRenaming(null)}
+        width={400}
+      >
+        <Input
+          value={renaming?.title ?? ''}
+          onChange={(e) => setRenaming(prev => prev ? { ...prev, title: e.target.value } : null)}
+          onPressEnter={handleConfirmRename}
+          autoFocus
+          placeholder="请输入新书名"
+          style={{ marginTop: 8 }}
+        />
+      </Modal>
 
       {/* Export progress modal */}
       <Modal

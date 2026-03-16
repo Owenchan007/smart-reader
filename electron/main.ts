@@ -1,4 +1,4 @@
-import { app, BrowserWindow, ipcMain, dialog } from 'electron'
+import { app, BrowserWindow } from 'electron'
 import path from 'path'
 import { initDatabase } from './services/db'
 import { registerIpcHandlers } from './ipc/handlers'
