@@ -63,4 +63,10 @@ export function initDatabase() {
     CREATE INDEX IF NOT EXISTS idx_notes_book_id ON notes(book_id);
     CREATE INDEX IF NOT EXISTS idx_conversations_book_id ON conversations(book_id);
   `)
+
+  // Migrate: add status column if missing
+  const columns = db.pragma('table_info(books)') as Array<{ name: string }>
+  if (!columns.find((c) => c.name === 'status')) {
+    db.exec(`ALTER TABLE books ADD COLUMN status TEXT DEFAULT 'reading'`)
+  }
 }

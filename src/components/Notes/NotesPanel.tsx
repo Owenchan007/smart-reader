@@ -42,6 +42,9 @@ const NotesPanel: React.FC<Props> = ({ bookId }) => {
 
   useEffect(() => {
     loadNotes()
+    const onRefresh = () => loadNotes()
+    window.addEventListener('notes-updated', onRefresh)
+    return () => window.removeEventListener('notes-updated', onRefresh)
   }, [loadNotes])
 
   // Check if whisper model is downloaded on mount

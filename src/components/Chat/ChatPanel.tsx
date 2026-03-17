@@ -36,6 +36,8 @@ const ChatPanel: React.FC<Props> = ({ bookId }) => {
   const [allChunks, setAllChunks] = useState<Chunk[]>([])
   const [bookLoading, setBookLoading] = useState(false)
   const messagesEndRef = useRef<HTMLDivElement>(null)
+  const chatContainerRef = useRef<HTMLDivElement>(null)
+  const userScrolledUpRef = useRef(false)
   const streamingRef = useRef('')
 
   const charLimit = MODEL_CHAR_LIMITS[aiModel] || 28000
@@ -53,9 +55,27 @@ const ChatPanel: React.FC<Props> = ({ bookId }) => {
     })
   }, [bookId])
 
+  // Detect if user scrolled up
+  const handleScroll = () => {
+    const el = chatContainerRef.current
+    if (!el) return
+    const distanceFromBottom = el.scrollHeight - el.scrollTop - el.clientHeight
+    userScrolledUpRef.current = distanceFromBottom > 80
+  }
+
+  // Auto-scroll only when user is near the bottom
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
+    if (!userScrolledUpRef.current) {
+      messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
+    }
   }, [messages, streamingContent])
+
+  // Reset scroll lock when streaming ends
+  useEffect(() => {
+    if (!loading) {
+      userScrolledUpRef.current = false
+    }
+  }, [loading])
 
   /** For short books: full text context */
   const getFullBookContext = () => {
@@ -243,7 +263,7 @@ const ChatPanel: React.FC<Props> = ({ bookId }) => {
         </Button>
       </div>
 
-      <div className="chat-messages">
+      <div className="chat-messages" ref={chatContainerRef} onScroll={handleScroll}>
         {/* Book status */}
         <div style={{ padding: '8px 0', textAlign: 'center', fontSize: 12, color: '#999' }}>
           {bookLoading ? (

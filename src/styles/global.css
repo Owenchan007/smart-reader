@@ -258,15 +258,121 @@ body {
   overflow: hidden;
   padding: 0;
   position: relative;
+  display: flex;
+  flex-direction: column;
 }
 
-.reader-content > div {
+.reader-content > div:first-child {
   width: 100%;
-  height: 100%;
+  flex: 1;
+  overflow: auto;
 }
 
 .reader-content iframe {
   border: none !important;
+}
+
+/* Chapter navigation */
+.chapter-nav {
+  position: absolute;
+  bottom: 16px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  gap: 24px;
+  padding: 8px 20px;
+  background: rgba(255, 255, 255, 0.95);
+  border-radius: 20px;
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.12);
+  z-index: 10;
+}
+
+/* Selection popup */
+.selection-popup {
+  position: fixed;
+  transform: translate(-50%, -100%);
+  z-index: 100;
+  background: #fff;
+  border-radius: 8px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.15);
+  padding: 4px 0;
+  white-space: nowrap;
+}
+
+.selection-popup-item {
+  padding: 6px 14px;
+  font-size: 13px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  transition: background 0.15s;
+}
+
+.selection-popup-item:hover {
+  background: #f0f5ff;
+  color: #1890ff;
+}
+
+/* Image viewer */
+.image-viewer-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 1000;
+  background: rgba(0, 0, 0, 0.85);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+}
+
+.image-viewer-toolbar {
+  position: absolute;
+  top: 20px;
+  display: flex;
+  gap: 4px;
+  background: rgba(255, 255, 255, 0.12);
+  backdrop-filter: blur(8px);
+  padding: 4px 8px;
+  border-radius: 10px;
+  z-index: 1010;
+  -webkit-app-region: no-drag;
+}
+
+.iv-btn {
+  width: 36px;
+  height: 36px;
+  border: none;
+  background: transparent;
+  color: #fff;
+  font-size: 18px;
+  cursor: pointer;
+  border-radius: 8px;
+  line-height: 1;
+}
+
+.iv-btn:hover {
+  background: rgba(255, 255, 255, 0.25);
+}
+
+.image-viewer-content {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  padding-top: 70px;
+}
+
+.image-viewer-content img {
+  max-width: 90%;
+  max-height: 85vh;
+  object-fit: contain;
+  cursor: grab;
+  user-select: none;
 }
 
 /* Right panel (Chat / Notes) */

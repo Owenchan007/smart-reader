@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react'
 import ePub from 'epubjs'
-import { Button, Tooltip } from 'antd'
-import { MenuFoldOutlined, MenuUnfoldOutlined } from '@ant-design/icons'
+import { Button, Tooltip, message } from 'antd'
+import { MenuFoldOutlined, MenuUnfoldOutlined, RightOutlined, HighlightOutlined, ZoomInOutlined, ZoomOutOutlined, RotateRightOutlined, CloseOutlined, UndoOutlined } from '@ant-design/icons'
 import { useStore } from '../../stores/useStore'
 import ChatPanel from '../Chat/ChatPanel'
 import NotesPanel from '../Notes/NotesPanel'
@@ -18,7 +18,9 @@ const DEFAULT_SIDEBAR_WIDTH = 260
 const DEFAULT_RIGHT_WIDTH = 400
 
 const ReaderView: React.FC = () => {
-  const { currentBook, rightPanel, readerSettings, setCurrentChapter: setStoreChapter } = useStore()
+  const { currentBook, rightPanel, readerSettings, setCurrentChapter: setStoreChapter, currentChapterLabel } = useStore()
+  const [selectionPopup, setSelectionPopup] = useState<{ x: number; y: number; text: string } | null>(null)
+  const [imageViewer, setImageViewer] = useState<{ src: string; zoom: number; rotation: number } | null>(null)
   const viewerRef = useRef<HTMLDivElement>(null)
   const renditionRef = useRef<any>(null)
   const bookRef = useRef<any>(null)
@@ -31,6 +33,7 @@ const ReaderView: React.FC = () => {
   const [sidebarWidth, setSidebarWidth] = useState(DEFAULT_SIDEBAR_WIDTH)
   const [rightWidth, setRightWidth] = useState(DEFAULT_RIGHT_WIDTH)
   const [isDragging, setIsDragging] = useState(false)
+  const [atBottom, setAtBottom] = useState(false)
 
   const draggingRef = useRef<'sidebar' | 'right' | null>(null)
   const startXRef = useRef(0)
@@ -146,11 +149,45 @@ const ReaderView: React.FC = () => {
               setStoreChapter(href, match?.label || '')
             }
           }
+          // Check if at end of chapter
+          if (location?.atEnd !== undefined) {
+            setAtBottom(location.atEnd)
+          }
         })
 
         rendition.on('keyup', (e: KeyboardEvent) => {
           if (e.key === 'ArrowLeft') rendition.prev()
           if (e.key === 'ArrowRight') rendition.next()
+        })
+
+        // Text selection popup
+        rendition.on('selected', (cfiRange: string) => {
+          setTimeout(() => {
+            const iframe = viewerRef.current?.querySelector('iframe')
+            if (!iframe?.contentWindow) return
+            const selection = iframe.contentWindow.getSelection()
+            const text = selection?.toString().trim()
+            if (!text) return
+
+            const range = selection!.getRangeAt(0)
+            const rect = range.getBoundingClientRect()
+            const iframeRect = iframe.getBoundingClientRect()
+
+            setSelectionPopup({
+              x: iframeRect.left + rect.left + rect.width / 2,
+              y: iframeRect.top + rect.top - 8,
+              text,
+            })
+          }, 10)
+        })
+
+        // Image click to open viewer
+        rendition.on('click', (e: MouseEvent) => {
+          const target = e.target as HTMLElement
+          if (target.tagName === 'IMG') {
+            const img = target as HTMLImageElement
+            setImageViewer({ src: img.src, zoom: 1, rotation: 0 })
+          }
         })
       } catch (err) {
         console.error('Failed to load book:', err)
@@ -169,6 +206,60 @@ const ReaderView: React.FC = () => {
   }, [currentBook])
 
   useEffect(() => { applyTheme() }, [applyTheme])
+
+  // Close selection popup when clicking outside it (both main doc and iframe)
+  useEffect(() => {
+    if (!selectionPopup) return
+    const handleDown = (e: MouseEvent) => {
+      const popup = document.querySelector('.selection-popup')
+      if (popup && popup.contains(e.target as Node)) return
+      setSelectionPopup(null)
+    }
+    document.addEventListener('mousedown', handleDown)
+
+    const iframe = viewerRef.current?.querySelector('iframe')
+    const iframeDoc = iframe?.contentDocument
+    iframeDoc?.addEventListener('mousedown', handleDown)
+
+    return () => {
+      document.removeEventListener('mousedown', handleDown)
+      iframeDoc?.removeEventListener('mousedown', handleDown)
+    }
+  }, [selectionPopup])
+
+  // Scroll detection: find the actual scrollable element created by epubjs
+  useEffect(() => {
+    if (loading || !viewerRef.current) return
+
+    // epubjs creates a scrollable container inside our div
+    // Try multiple candidates: the viewer itself, or epubjs's internal container
+    const findScrollableEl = (): HTMLElement | null => {
+      const container = viewerRef.current!.querySelector('.epub-container') as HTMLElement
+      if (container && container.scrollHeight > container.clientHeight) return container
+      const viewer = viewerRef.current!
+      if (viewer.scrollHeight > viewer.clientHeight) return viewer
+      return container || viewer
+    }
+
+    // Delay to let epubjs finish rendering
+    const timer = setTimeout(() => {
+      const el = findScrollableEl()
+      if (!el) return
+
+      const onScroll = () => {
+        const distFromBottom = el.scrollHeight - el.scrollTop - el.clientHeight
+        setAtBottom(distFromBottom < 50)
+      }
+      el.addEventListener('scroll', onScroll)
+      // Store cleanup ref
+      ;(viewerRef.current as any).__scrollCleanup = () => el.removeEventListener('scroll', onScroll)
+    }, 500)
+
+    return () => {
+      clearTimeout(timer)
+      ;(viewerRef.current as any)?.__scrollCleanup?.()
+    }
+  }, [loading, currentChapterHref])
 
   // Resize rendition when sidebar or right panel toggles
   useEffect(() => {
@@ -218,7 +309,23 @@ const ReaderView: React.FC = () => {
   }
 
   const goToChapter = (href: string) => {
+    setAtBottom(false)
     renditionRef.current?.display(href)
+  }
+
+  const goToNextChapter = () => { setAtBottom(false); renditionRef.current?.next() }
+
+  const handleAddToNotes = async () => {
+    if (!selectionPopup || !currentBook) return
+    await window.electronAPI.createNote({
+      bookId: currentBook.id,
+      chapter: currentChapterLabel || '',
+      content: selectionPopup.text,
+      source: 'highlight',
+    })
+    message.success('已添加到笔记')
+    setSelectionPopup(null)
+    window.dispatchEvent(new Event('notes-updated'))
   }
 
   const flattenToc = (items: typeof toc, depth = 0): Array<{ label: string; href: string; depth: number }> => {
@@ -255,7 +362,7 @@ const ReaderView: React.FC = () => {
             {flatToc.map((item, idx) => (
               <div
                 key={idx}
-                className={`toc-item ${currentChapterHref.includes(item.href) ? 'active' : ''}`}
+                className={`toc-item ${(currentChapterHref.includes(item.href.split('#')[0]) || item.href.includes(currentChapterHref)) && currentChapterHref ? 'active' : ''}`}
                 onClick={() => goToChapter(item.href)}
                 title={item.label}
                 style={{ paddingLeft: 12 + item.depth * 16 }}
@@ -285,8 +392,73 @@ const ReaderView: React.FC = () => {
             </div>
           )}
           <div ref={viewerRef} style={{ width: '100%', height: '100%', overflow: 'auto' }} />
+          {!loading && atBottom && (
+            <div className="chapter-nav">
+              <Button icon={<RightOutlined />} onClick={goToNextChapter}>下一章</Button>
+            </div>
+          )}
         </div>
       </div>
+
+      {/* Selection popup */}
+      {selectionPopup && (
+        <div
+          className="selection-popup"
+          style={{ top: selectionPopup.y, left: selectionPopup.x }}
+        >
+          <div className="selection-popup-item" onClick={handleAddToNotes}>
+            <HighlightOutlined style={{ marginRight: 6 }} />
+            添加到笔记
+          </div>
+        </div>
+      )}
+
+      {/* Image viewer */}
+      {imageViewer && (
+        <div className="image-viewer-overlay" onClick={(e) => {
+          if ((e.target as HTMLElement).classList.contains('image-viewer-overlay')) setImageViewer(null)
+        }}>
+          <div className="image-viewer-toolbar">
+            <button className="iv-btn" title="放大"
+              onClick={() => setImageViewer(v => v && { ...v, zoom: Math.min(v.zoom + 0.25, 5) })}>
+              <ZoomInOutlined />
+            </button>
+            <button className="iv-btn" title="缩小"
+              onClick={() => setImageViewer(v => v && { ...v, zoom: Math.max(v.zoom - 0.25, 0.25) })}>
+              <ZoomOutOutlined />
+            </button>
+            <button className="iv-btn" title="旋转"
+              onClick={() => setImageViewer(v => v && { ...v, rotation: v.rotation + 90 })}>
+              <RotateRightOutlined />
+            </button>
+            <button className="iv-btn" title="重置"
+              onClick={() => setImageViewer(v => v && { ...v, zoom: 1, rotation: 0 })}>
+              <UndoOutlined />
+            </button>
+            <button className="iv-btn" title="关闭"
+              onClick={() => setImageViewer(null)}>
+              <CloseOutlined />
+            </button>
+          </div>
+          <div className="image-viewer-content">
+            <img
+              src={imageViewer.src}
+              style={{
+                transform: `scale(${imageViewer.zoom}) rotate(${imageViewer.rotation}deg)`,
+                transition: 'transform 0.2s ease',
+              }}
+              draggable={false}
+              onWheel={(e) => {
+                e.stopPropagation()
+                setImageViewer(v => v && {
+                  ...v,
+                  zoom: Math.min(5, Math.max(0.25, v.zoom + (e.deltaY < 0 ? 0.15 : -0.15))),
+                })
+              }}
+            />
+          </div>
+        </div>
+      )}
 
       {/* Right panel */}
       {rightPanel !== 'none' && currentBook && (

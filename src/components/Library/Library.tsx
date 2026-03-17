@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useCallback, useRef } from 'react'
 import { Button, message, Popconfirm, Empty, Tooltip, Modal, Progress, Input } from 'antd'
-import { PlusOutlined, DeleteOutlined, BookOutlined, ExportOutlined, EditOutlined } from '@ant-design/icons'
+import { PlusOutlined, DeleteOutlined, BookOutlined, ExportOutlined, EditOutlined, CheckCircleOutlined, ReadOutlined } from '@ant-design/icons'
 import { useStore } from '../../stores/useStore'
 
 const Library: React.FC = () => {
@@ -164,6 +164,55 @@ const Library: React.FC = () => {
     loadBooks()
   }
 
+  const handleToggleStatus = async (book: Book) => {
+    setContextMenu(null)
+    const newStatus = book.status === 'finished' ? 'reading' : 'finished'
+    await window.electronAPI.updateBookStatus(book.id, newStatus)
+    message.success(newStatus === 'finished' ? '已标记为读完' : '已标记为在读')
+    loadBooks()
+  }
+
+  const readingBooks = books.filter((b) => b.status !== 'finished')
+  const finishedBooks = books.filter((b) => b.status === 'finished')
+
+  const renderBookCard = (book: Book) => (
+    <div key={book.id} className="book-card" onContextMenu={(e) => handleContextMenu(e, book)}>
+      <div className="book-cover" onClick={() => handleOpenBook(book)}>
+        {book.cover_image ? (
+          <img src={book.cover_image} alt={book.title} />
+        ) : (
+          <span>{book.title}</span>
+        )}
+      </div>
+      <div className="book-info">
+        <div className="book-title" title={book.title}>{book.title}</div>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <span className="book-author">{book.author}</span>
+          <div>
+            <Tooltip title="导出到 Obsidian">
+              <Button
+                type="text"
+                size="small"
+                icon={<ExportOutlined />}
+                onClick={() => handleExportBook(book)}
+                loading={exporting === book.id}
+                disabled={exporting !== null}
+              />
+            </Tooltip>
+            <Popconfirm
+              title="确定删除这本书？"
+              onConfirm={() => handleDelete(book.id)}
+              okText="删除"
+              cancelText="取消"
+            >
+              <Button type="text" size="small" icon={<DeleteOutlined />} danger />
+            </Popconfirm>
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+
   const handleChangeVault = async () => {
     const selected = await window.electronAPI.selectObsidianVault()
     if (selected) {
@@ -213,45 +262,30 @@ const Library: React.FC = () => {
           style={{ marginTop: 120 }}
         />
       ) : (
-        <div className="book-grid">
-          {books.map((book) => (
-            <div key={book.id} className="book-card" onContextMenu={(e) => handleContextMenu(e, book)}>
-              <div className="book-cover" onClick={() => handleOpenBook(book)}>
-                {book.cover_image ? (
-                  <img src={book.cover_image} alt={book.title} />
-                ) : (
-                  <span>{book.title}</span>
-                )}
+        <>
+          {readingBooks.length > 0 && (
+            <>
+              <h3 style={{ fontSize: 15, color: '#333', margin: '8px 0 12px', display: 'flex', alignItems: 'center', gap: 6 }}>
+                <ReadOutlined style={{ color: '#1890ff' }} />
+                在读 · {readingBooks.length} 本
+              </h3>
+              <div className="book-grid">
+                {readingBooks.map((book) => renderBookCard(book))}
               </div>
-              <div className="book-info">
-                <div className="book-title" title={book.title}>{book.title}</div>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <span className="book-author">{book.author}</span>
-                  <div>
-                    <Tooltip title="导出到 Obsidian">
-                      <Button
-                        type="text"
-                        size="small"
-                        icon={<ExportOutlined />}
-                        onClick={() => handleExportBook(book)}
-                        loading={exporting === book.id}
-                        disabled={exporting !== null}
-                      />
-                    </Tooltip>
-                    <Popconfirm
-                      title="确定删除这本书？"
-                      onConfirm={() => handleDelete(book.id)}
-                      okText="删除"
-                      cancelText="取消"
-                    >
-                      <Button type="text" size="small" icon={<DeleteOutlined />} danger />
-                    </Popconfirm>
-                  </div>
-                </div>
+            </>
+          )}
+          {finishedBooks.length > 0 && (
+            <>
+              <h3 style={{ fontSize: 15, color: '#333', margin: '24px 0 12px', display: 'flex', alignItems: 'center', gap: 6 }}>
+                <CheckCircleOutlined style={{ color: '#52c41a' }} />
+                已读完 · {finishedBooks.length} 本
+              </h3>
+              <div className="book-grid">
+                {finishedBooks.map((book) => renderBookCard(book))}
               </div>
-            </div>
-          ))}
-        </div>
+            </>
+          )}
+        </>
       )}
 
       {/* Right-click context menu */}
@@ -264,6 +298,13 @@ const Library: React.FC = () => {
           <div className="context-menu-item" onClick={() => handleStartRename(contextMenu.book)}>
             <EditOutlined style={{ marginRight: 8 }} />
             重命名
+          </div>
+          <div className="context-menu-item" onClick={() => handleToggleStatus(contextMenu.book)}>
+            {contextMenu.book.status === 'finished' ? (
+              <><ReadOutlined style={{ marginRight: 8 }} />标记为在读</>
+            ) : (
+              <><CheckCircleOutlined style={{ marginRight: 8 }} />标记为已读完</>
+            )}
           </div>
         </div>
       )}

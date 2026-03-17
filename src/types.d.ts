@@ -9,6 +9,7 @@ interface Book {
   file_path: string
   cover_image: string | null
   last_position: string
+  status: 'reading' | 'finished'
   created_at: string
   updated_at: string
 }
@@ -47,6 +48,7 @@ interface ElectronAPI {
   getBook: (id: number) => Promise<Book | undefined>
   deleteBook: (id: number) => Promise<boolean>
   renameBook: (id: number, title: string) => Promise<boolean>
+  updateBookStatus: (id: number, status: string) => Promise<boolean>
   readBookFile: (filePath: string) => Promise<ArrayBuffer>
   updateBookProgress: (id: number, position: string) => Promise<boolean>
   saveBookMetadata: (data: { filePath: string; title: string; author: string; coverImage?: string }) => Promise<number>
