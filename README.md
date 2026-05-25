@@ -2,7 +2,7 @@
 
 # 📖 智能读书笔记
 
-**EPUB 阅读 · AI 问答 · 语音笔记 · Obsidian 导出**
+**EPUB 阅读 · AI 问答 · 智能笔记 · Obsidian 导出**
 
 一款桌面端智能阅读应用，让 AI 成为你的私人读书助手
 
@@ -48,7 +48,6 @@
 ### 📝 智能笔记
 - 文本笔记：支持 macOS 原生语音输入
 - AI 整理：一键将口语化内容整理为书面笔记
-- 语音笔记：录音 → Whisper 本地转写 → AI 整理
 - Markdown 渲染，支持编辑与删除
 
 </td>
@@ -72,7 +71,6 @@
 | 构建 | Vite + electron-builder |
 | EPUB 渲染 | epub.js |
 | AI 接口 | OpenAI 兼容接口（腾讯云 Coding Plan 等） |
-| 语音识别 | openai-whisper（本地运行） |
 | 数据库 | better-sqlite3 |
 | UI 组件 | Ant Design |
 | 状态管理 | Zustand |
@@ -113,16 +111,6 @@ npm run build
 4. **AI 问答** — 切换到「AI 问答」面板，向 AI 提问
 5. **笔记** — 切换到「笔记」面板，记录想法或开启 AI 整理
 
-### 语音笔记（可选）
-
-语音笔记依赖本地 Whisper，需提前安装：
-
-```bash
-pip install openai-whisper
-```
-
-> 首次使用会自动下载 Whisper Medium 模型（约 1.5 GB）。
-
 ## 📁 项目结构
 
 ```
@@ -133,8 +121,7 @@ smart-reader/
 │   ├── services/
 │   │   ├── db.ts             # SQLite 数据库
 │   │   ├── epub-parser.ts    # EPUB 解析与文本提取
-│   │   ├── ai-client.ts      # AI API 调用（流式）
-│   │   └── whisper.ts        # Whisper 语音识别
+│   │   └── ai-client.ts      # AI API 调用（流式）
 │   └── ipc/
 │       └── handlers.ts       # IPC 处理器
 ├── src/                       # React 渲染进程

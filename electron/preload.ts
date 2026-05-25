@@ -38,22 +38,11 @@ contextBridge.exposeInMainWorld('electronAPI', {
   clearConversations: (bookId: number) =>
     ipcRenderer.invoke('conversation:clear', bookId),
 
-  // Whisper
-  checkWhisperModel: (model: string) =>
-    ipcRenderer.invoke('whisper:checkModel', model),
-  downloadWhisperModel: (model: string, mirrorUrl?: string) =>
-    ipcRenderer.invoke('whisper:downloadModel', model, mirrorUrl),
-  onWhisperDownloadProgress: (callback: (info: { percent: number; downloadedMB: number; totalMB: number }) => void) => {
-    const handler = (_event: any, info: { percent: number; downloadedMB: number; totalMB: number }) => callback(info)
-    ipcRenderer.on('whisper:download-progress', handler)
-    return () => ipcRenderer.removeListener('whisper:download-progress', handler)
-  },
-  transcribeAudio: (audioData: Uint8Array) =>
-    ipcRenderer.invoke('whisper:transcribe', audioData),
-
   // AI operations
   chatWithAI: (params: { messages: Array<{ role: string; content: string }>; model?: string; apiKey: string }) =>
     ipcRenderer.invoke('ai:chat', params),
+  chatWithAISimple: (params: { messages: Array<{ role: string; content: string }>; model?: string; apiKey: string }) =>
+    ipcRenderer.invoke('ai:chatSimple', params),
   onStreamChunk: (callback: (chunk: string) => void) => {
     const handler = (_event: any, chunk: string) => callback(chunk)
     ipcRenderer.on('ai:stream-chunk', handler)

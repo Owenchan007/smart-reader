@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react'
 import { Button, message, Spin, Tag, Collapse } from 'antd'
 import {
   SendOutlined, ClearOutlined, UnorderedListOutlined, FileTextOutlined,
-  DownOutlined,
+  DownOutlined, QuestionCircleOutlined,
 } from '@ant-design/icons'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
@@ -27,7 +27,7 @@ const MarkdownBubble: React.FC<{ content: string }> = ({ content }) => (
 )
 
 const ChatPanel: React.FC<Props> = ({ bookId }) => {
-  const { apiKey, aiModel, currentBook, currentChapter, currentChapterLabel } = useStore()
+  const { apiKey, aiModel, currentBook, currentChapter, currentChapterLabel, chapterQuestions, setChapterQuestions } = useStore()
   const [messages, setMessages] = useState<Conversation[]>([])
   const [input, setInput] = useState('')
   const [loading, setLoading] = useState(false)
@@ -239,6 +239,91 @@ const ChatPanel: React.FC<Props> = ({ bookId }) => {
     ].join('\n'))
   }
 
+  // Background: auto-generate chapter questions when entering a new chapter
+  useEffect(() => {
+    if (!currentChapter || !currentChapterLabel || !apiKey || !allChunks.length) return
+    // Already cached or loading
+    if (chapterQuestions[currentChapter]) return
+
+    setChapterQuestions(currentChapter, { status: 'loading', content: '' })
+
+    const generateQuestions = async () => {
+      try {
+        // Get current chapter content
+        const chapterChunks = allChunks.filter((c) => c.chapter === currentChapter)
+        const chapterText = chapterChunks.map((c) => c.content).join('')
+        if (!chapterText.trim()) return
+
+        const maxChars = (MODEL_CHAR_LIMITS[aiModel] || 28000) - 3000
+        const trimmedText = chapterText.slice(0, maxChars)
+
+        const bookTitle = currentBook?.title || '未知书名'
+        const systemPrompt = [
+          `你是一个读书教练。用户正在阅读《${bookTitle}》的「${currentChapterLabel}」章节。`,
+          '请根据本章内容，生成 3-5 个精选的知识点回顾问题，帮助读者用自己的话复述和巩固本章核心内容。',
+          '',
+          '要求：',
+          '1. 问题应聚焦本章最重要的知识点和核心概念',
+          '2. 问题要能引导读者深度思考，而非简单的是非题',
+          '3. 只列出问题，不要附带提示或答案',
+          '4. 用 Markdown 格式输出，每个问题用编号列出',
+          '',
+          '=== 章节内容 ===',
+          trimmedText,
+        ].join('\n')
+
+        const result = await window.electronAPI.chatWithAISimple({
+          messages: [
+            { role: 'system', content: systemPrompt },
+            { role: 'user', content: `请为「${currentChapterLabel}」这一章生成知识点回顾问题。` },
+          ],
+          model: aiModel,
+          apiKey,
+        })
+
+        setChapterQuestions(currentChapter, { status: 'done', content: result })
+      } catch (err) {
+        console.error('[ChatPanel] Failed to generate chapter questions:', err)
+        setChapterQuestions(currentChapter, { status: 'error', content: '' })
+      }
+    }
+
+    generateQuestions()
+  }, [currentChapter, currentChapterLabel, apiKey, allChunks.length])
+
+  const handleChapterQuestions = async () => {
+    if (!currentChapterLabel) {
+      message.info('请先翻到某个章节')
+      return
+    }
+
+    const cached = chapterQuestions[currentChapter]
+    if (cached?.status === 'done' && cached.content) {
+      // Use pre-generated questions: insert directly into chat without API call
+      const userContent = `请给出「${currentChapterLabel}」这一章的知识点回顾问题，帮助我巩固记忆。`
+      await window.electronAPI.saveMessage({ bookId, role: 'user', content: userContent })
+      await window.electronAPI.saveMessage({ bookId, role: 'assistant', content: cached.content })
+      setMessages((prev) => [
+        ...prev,
+        { id: Date.now(), book_id: bookId, role: 'user', content: userContent, created_at: new Date().toISOString() },
+        { id: Date.now() + 1, book_id: bookId, role: 'assistant', content: cached.content, created_at: new Date().toISOString() },
+      ])
+      return
+    }
+    if (cached?.status === 'loading') {
+      message.info('问题正在后台生成中，请稍候...')
+      return
+    }
+    // Fallback: generate via streaming chat
+    sendMessage([
+      `请为当前章节「${currentChapterLabel}」生成 3-5 个知识点回顾问题，帮助我巩固记忆。要求：`,
+      '1. 聚焦本章最重要的知识点和核心概念',
+      '2. 问题要引导深度思考，而非简单的是非题',
+      '3. 只列出问题，不要附带提示或答案',
+      '请用 Markdown 格式输出。',
+    ].join('\n'))
+  }
+
   const handleClear = async () => {
     await window.electronAPI.clearConversations(bookId)
     setMessages([])
@@ -334,24 +419,39 @@ const ChatPanel: React.FC<Props> = ({ bookId }) => {
               </span>
             ),
             children: (
-              <div style={{ display: 'flex', gap: 8 }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                <div style={{ display: 'flex', gap: 8 }}>
+                  <Button
+                    icon={<UnorderedListOutlined />}
+                    onClick={handleOutline}
+                    disabled={loading || bookLoading}
+                    size="small"
+                    block
+                  >
+                    提炼全书框架
+                  </Button>
+                  <Button
+                    icon={<FileTextOutlined />}
+                    onClick={handleChapterSummary}
+                    disabled={loading || bookLoading || !currentChapterLabel}
+                    size="small"
+                    block
+                  >
+                    总结当前章节
+                  </Button>
+                </div>
                 <Button
-                  icon={<UnorderedListOutlined />}
-                  onClick={handleOutline}
-                  disabled={loading || bookLoading}
-                  size="small"
-                  block
-                >
-                  提炼全书框架
-                </Button>
-                <Button
-                  icon={<FileTextOutlined />}
-                  onClick={handleChapterSummary}
+                  icon={<QuestionCircleOutlined />}
+                  onClick={handleChapterQuestions}
                   disabled={loading || bookLoading || !currentChapterLabel}
+                  loading={chapterQuestions[currentChapter]?.status === 'loading'}
                   size="small"
                   block
                 >
-                  总结当前章节
+                  章节知识提问
+                  {chapterQuestions[currentChapter]?.status === 'done' && (
+                    <Tag color="green" style={{ marginLeft: 6, fontSize: 11 }}>已就绪</Tag>
+                  )}
                 </Button>
               </div>
             ),

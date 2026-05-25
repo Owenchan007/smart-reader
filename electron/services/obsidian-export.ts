@@ -140,7 +140,7 @@ function buildBookPage(
     lines.push('*暂无笔记*', '')
   } else {
     for (const note of notes) {
-      const tag = note.source === 'voice' ? ' `语音`' : note.source === 'ai-cleaned' ? ' `AI整理`' : ''
+      const tag = note.source === 'ai-cleaned' ? ' `AI整理`' : ''
       lines.push(
         insertConceptLinks(note.content, conceptNames),
         '',

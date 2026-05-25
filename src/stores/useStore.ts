@@ -35,6 +35,10 @@ interface AppState {
   currentChapter: string
   currentChapterLabel: string
   setCurrentChapter: (href: string, label: string) => void
+
+  // Chapter questions cache (keyed by chapter href)
+  chapterQuestions: Record<string, { status: 'loading' | 'done' | 'error'; content: string }>
+  setChapterQuestions: (href: string, data: { status: 'loading' | 'done' | 'error'; content: string }) => void
 }
 
 export const useStore = create<AppState>((set) => ({
@@ -68,4 +72,10 @@ export const useStore = create<AppState>((set) => ({
   currentChapter: '',
   currentChapterLabel: '',
   setCurrentChapter: (href, label) => set({ currentChapter: href, currentChapterLabel: label }),
+
+  chapterQuestions: {},
+  setChapterQuestions: (href, data) =>
+    set((state) => ({
+      chapterQuestions: { ...state.chapterQuestions, [href]: data },
+    })),
 }))

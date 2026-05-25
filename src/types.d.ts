@@ -62,11 +62,8 @@ interface ElectronAPI {
   saveMessage: (msg: { bookId: number; role: string; content: string }) => Promise<number>
   getConversations: (bookId: number) => Promise<Conversation[]>
   clearConversations: (bookId: number) => Promise<boolean>
-  checkWhisperModel: (model: string) => Promise<boolean>
-  downloadWhisperModel: (model: string, mirrorUrl?: string) => Promise<boolean>
-  onWhisperDownloadProgress: (callback: (info: { percent: number; downloadedMB: number; totalMB: number }) => void) => () => void
-  transcribeAudio: (audioData: Uint8Array) => Promise<string>
   chatWithAI: (params: { messages: Array<{ role: string; content: string }>; model?: string; apiKey: string }) => Promise<string>
+  chatWithAISimple: (params: { messages: Array<{ role: string; content: string }>; model?: string; apiKey: string }) => Promise<string>
   onStreamChunk: (callback: (chunk: string) => void) => () => void
   onStreamEnd: (callback: () => void) => () => void
   selectObsidianVault: () => Promise<string | null>

@@ -1,8 +1,7 @@
-import { ipcMain, dialog, BrowserWindow } from 'electron'
+import { ipcMain, dialog } from 'electron'
 import { getDb } from '../services/db'
 import { copyBookToAppData, saveBookRecord, saveChunks, searchChunks, extractEpubContent } from '../services/epub-parser'
-import { chatWithAIStream } from '../services/ai-client'
-import { transcribeAudio, isModelDownloaded, downloadModel } from '../services/whisper'
+import { chatWithAIStream, chatWithAISimple } from '../services/ai-client'
 import { exportBookToObsidian, exportAllBooksToObsidian } from '../services/obsidian-export'
 import fs from 'fs'
 
@@ -189,25 +188,14 @@ export function registerIpcHandlers() {
     }
   })
 
-  // === Whisper handlers ===
-  ipcMain.handle('whisper:checkModel', (_event, model: string) => {
-    return isModelDownloaded(model)
-  })
-
-  ipcMain.handle('whisper:downloadModel', async (_event, model: string, mirrorUrl?: string) => {
-    const win = BrowserWindow.getFocusedWindow()
-    await downloadModel(model, (percent, downloadedMB, totalMB) => {
-      win?.webContents.send('whisper:download-progress', { percent, downloadedMB, totalMB })
-    }, mirrorUrl)
-    return true
-  })
-
-  ipcMain.handle('whisper:transcribe', async (_event, audioData: Uint8Array) => {
+  // === AI handler (non-streaming, for background tasks) ===
+  ipcMain.handle('ai:chatSimple', async (_event, params: {
+    messages: Array<{ role: string; content: string }>; model?: string; apiKey: string
+  }) => {
     try {
-      const buffer = Buffer.from(audioData)
-      return await transcribeAudio(buffer)
+      return await chatWithAISimple(params)
     } catch (err: any) {
-      console.error('[IPC whisper] Error:', err.message)
+      console.error('[IPC ai:chatSimple] Error:', err.message)
       throw err
     }
   })
