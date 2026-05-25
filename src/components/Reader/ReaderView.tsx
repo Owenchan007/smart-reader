@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react'
 import ePub from 'epubjs'
 import { Button, Tooltip, message } from 'antd'
-import { MenuFoldOutlined, MenuUnfoldOutlined, RightOutlined, HighlightOutlined, ZoomInOutlined, ZoomOutOutlined, RotateRightOutlined, CloseOutlined, UndoOutlined } from '@ant-design/icons'
+import { MenuFoldOutlined, MenuUnfoldOutlined, HighlightOutlined, ZoomInOutlined, ZoomOutOutlined, RotateRightOutlined, CloseOutlined, UndoOutlined } from '@ant-design/icons'
 import { useStore } from '../../stores/useStore'
 import ChatPanel from '../Chat/ChatPanel'
 import NotesPanel from '../Notes/NotesPanel'
@@ -33,7 +33,6 @@ const ReaderView: React.FC = () => {
   const [sidebarWidth, setSidebarWidth] = useState(DEFAULT_SIDEBAR_WIDTH)
   const [rightWidth, setRightWidth] = useState(DEFAULT_RIGHT_WIDTH)
   const [isDragging, setIsDragging] = useState(false)
-  const [atBottom, setAtBottom] = useState(false)
 
   const draggingRef = useRef<'sidebar' | 'right' | null>(null)
   const startXRef = useRef(0)
@@ -110,7 +109,8 @@ const ReaderView: React.FC = () => {
 
         const rendition = book.renderTo(viewerRef.current!, {
           width: '100%', height: '100%',
-          spread: 'none', flow: 'scrolled-doc', allowScriptedContent: true,
+          spread: 'none', flow: 'scrolled-continuous',
+          manager: 'continuous', allowScriptedContent: true,
         })
         renditionRef.current = rendition
         applyTheme()
@@ -149,15 +149,6 @@ const ReaderView: React.FC = () => {
               setStoreChapter(href, match?.label || '')
             }
           }
-          // Check if at end of chapter
-          if (location?.atEnd !== undefined) {
-            setAtBottom(location.atEnd)
-          }
-        })
-
-        rendition.on('keyup', (e: KeyboardEvent) => {
-          if (e.key === 'ArrowLeft') rendition.prev()
-          if (e.key === 'ArrowRight') rendition.next()
         })
 
         // Text selection popup
@@ -227,40 +218,6 @@ const ReaderView: React.FC = () => {
     }
   }, [selectionPopup])
 
-  // Scroll detection: find the actual scrollable element created by epubjs
-  useEffect(() => {
-    if (loading || !viewerRef.current) return
-
-    // epubjs creates a scrollable container inside our div
-    // Try multiple candidates: the viewer itself, or epubjs's internal container
-    const findScrollableEl = (): HTMLElement | null => {
-      const container = viewerRef.current!.querySelector('.epub-container') as HTMLElement
-      if (container && container.scrollHeight > container.clientHeight) return container
-      const viewer = viewerRef.current!
-      if (viewer.scrollHeight > viewer.clientHeight) return viewer
-      return container || viewer
-    }
-
-    // Delay to let epubjs finish rendering
-    const timer = setTimeout(() => {
-      const el = findScrollableEl()
-      if (!el) return
-
-      const onScroll = () => {
-        const distFromBottom = el.scrollHeight - el.scrollTop - el.clientHeight
-        setAtBottom(distFromBottom < 50)
-      }
-      el.addEventListener('scroll', onScroll)
-      // Store cleanup ref
-      ;(viewerRef.current as any).__scrollCleanup = () => el.removeEventListener('scroll', onScroll)
-    }, 500)
-
-    return () => {
-      clearTimeout(timer)
-      ;(viewerRef.current as any)?.__scrollCleanup?.()
-    }
-  }, [loading, currentChapterHref])
-
   // Resize rendition when sidebar or right panel toggles
   useEffect(() => {
     // Small delay to let CSS layout settle before epubjs recalculates
@@ -309,11 +266,8 @@ const ReaderView: React.FC = () => {
   }
 
   const goToChapter = (href: string) => {
-    setAtBottom(false)
     renditionRef.current?.display(href)
   }
-
-  const goToNextChapter = () => { setAtBottom(false); renditionRef.current?.next() }
 
   const handleAddToNotes = async () => {
     if (!selectionPopup || !currentBook) return
@@ -392,11 +346,6 @@ const ReaderView: React.FC = () => {
             </div>
           )}
           <div ref={viewerRef} style={{ width: '100%', height: '100%', overflow: 'auto' }} />
-          {!loading && atBottom && (
-            <div className="chapter-nav">
-              <Button icon={<RightOutlined />} onClick={goToNextChapter}>下一章</Button>
-            </div>
-          )}
         </div>
       </div>
 
