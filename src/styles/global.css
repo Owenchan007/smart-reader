@@ -179,11 +179,32 @@ body {
 
 .reader-sidebar {
   border-right: 1px solid #f0f0f0;
-  overflow-y: auto;
   background: #fafafa;
-  padding: 16px;
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.reader-sidebar-header {
+  padding: 16px 16px 12px;
+  border-bottom: 1px solid #ececec;
   flex-shrink: 0;
 }
+
+.reader-sidebar-list {
+  flex: 1 1 auto;
+  overflow-y: auto;
+  padding: 8px 16px 16px;
+}
+
+/* Hide the TOC scrollbar by default; .is-scrolling is toggled by ReaderView while the user actively scrolls. */
+.reader-sidebar-list::-webkit-scrollbar-thumb {
+  background: transparent;
+  transition: background 0.3s ease;
+}
+.reader-sidebar-list.is-scrolling::-webkit-scrollbar-thumb { background: #ccc; }
+.reader-sidebar-list.is-scrolling::-webkit-scrollbar-thumb:hover { background: #999; }
 
 .reader-sidebar h3 {
   font-size: 14px;
@@ -716,9 +737,99 @@ body {
 }
 
 .theme-dark {
-  background: #1a1a2e;
-  color: #e0e0e0;
+  background: #1c1c1c;
+  color: #e5e5e5;
 }
+
+/* ============================================================
+   Dark mode — applied to <body class="app-theme-dark">
+   Neutral grays (no blue cast), inspired by Claude Code's UI.
+   ============================================================ */
+body.app-theme-dark {
+  background: #1c1c1c;
+  color: #e5e5e5;
+}
+
+/* App header */
+body.app-theme-dark .app-header {
+  background: #171717;
+  border-bottom: 1px solid #2a2a2a;
+  color: #e5e5e5;
+}
+
+/* Library (book grid) */
+body.app-theme-dark .library-container { background: #1c1c1c; color: #e5e5e5; }
+body.app-theme-dark .book-card { border-color: #2a2a2a; background: #1f1f1f; }
+body.app-theme-dark .book-card:hover { box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5); }
+
+/* Reader sidebar */
+body.app-theme-dark .reader-sidebar {
+  background: #171717;
+  border-right: 1px solid #2a2a2a;
+}
+body.app-theme-dark .reader-sidebar-header { border-bottom: 1px solid #2a2a2a; }
+body.app-theme-dark .reader-sidebar h3 { color: #e5e5e5; }
+body.app-theme-dark .sidebar-toggle-collapsed {
+  background: #171717;
+  border-right: 1px solid #2a2a2a;
+}
+body.app-theme-dark .toc-item { color: #bdbdbd; }
+body.app-theme-dark .toc-item:hover { background: #252525; }
+body.app-theme-dark .toc-item.active { background: #1f4f8b; color: #fff; }
+
+/* Right panel (Chat / Notes) */
+body.app-theme-dark .right-panel {
+  background: #171717;
+  border-left: 1px solid #2a2a2a;
+  color: #e5e5e5;
+}
+body.app-theme-dark .right-panel-header {
+  border-bottom: 1px solid #2a2a2a;
+  color: #e5e5e5;
+}
+
+/* Chat bubbles */
+body.app-theme-dark .chat-message.assistant .bubble {
+  background: #252525;
+  color: #e5e5e5;
+}
+body.app-theme-dark .chat-message.user .bubble { background: #1f4f8b; }
+
+/* Notes */
+body.app-theme-dark .note-item { background: #252525; border-color: #2a2a2a; color: #e5e5e5; }
+body.app-theme-dark .note-input-area { background: #171717; border-top: 1px solid #2a2a2a; }
+body.app-theme-dark .note-meta { color: #888; }
+
+/* Context menu */
+body.app-theme-dark .context-menu { background: #252525; border-color: #2a2a2a; color: #e5e5e5; }
+body.app-theme-dark .context-menu-item:hover { background: #303030; }
+
+/* Resize handles, scrollbar */
+body.app-theme-dark ::-webkit-scrollbar-thumb { background: #3a3a3a; }
+body.app-theme-dark ::-webkit-scrollbar-thumb:hover { background: #4a4a4a; }
+/* Keep the TOC scrollbar invisible while idle in dark mode too. */
+body.app-theme-dark .reader-sidebar-list::-webkit-scrollbar-thumb { background: transparent; }
+body.app-theme-dark .reader-sidebar-list.is-scrolling::-webkit-scrollbar-thumb { background: #3a3a3a; }
+body.app-theme-dark .reader-sidebar-list.is-scrolling::-webkit-scrollbar-thumb:hover { background: #4a4a4a; }
+body.app-theme-dark .resize-handle:hover,
+body.app-theme-dark .resize-handle:active { background: #3a6fb8; }
+
+/* Empty state */
+body.app-theme-dark .empty-state { color: #888; }
+body.app-theme-dark .empty-state .anticon { color: #3a3a3a; }
+
+/* Ant Design overrides — Inputs, Buttons, Modals stay legible */
+body.app-theme-dark .ant-input,
+body.app-theme-dark .ant-input-affix-wrapper,
+body.app-theme-dark textarea.ant-input {
+  background: #1f1f1f;
+  border-color: #2a2a2a;
+  color: #e5e5e5;
+}
+body.app-theme-dark .ant-input::placeholder,
+body.app-theme-dark textarea.ant-input::placeholder { color: #777; }
+body.app-theme-dark .ant-btn-text { color: #d0d0d0; }
+body.app-theme-dark .ant-btn-text:hover { background: #252525; color: #fff; }
 
 /* Empty state */
 .empty-state {

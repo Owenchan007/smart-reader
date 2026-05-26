@@ -9,7 +9,7 @@ import NotesPanel from '../Notes/NotesPanel'
 const themeStyles: Record<string, { body: Record<string, string> }> = {
   light: { body: { background: '#ffffff', color: '#333333' } },
   warm: { body: { background: '#f5f0e8', color: '#4a4a4a' } },
-  dark: { body: { background: '#1a1a2e', color: '#e0e0e0' } },
+  dark: { body: { background: '#1c1c1c', color: '#e5e5e5' } },
 }
 
 const MIN_PANEL_WIDTH = 200
@@ -41,6 +41,8 @@ const ReaderView: React.FC = () => {
   const draggingRef = useRef<'sidebar' | 'right' | null>(null)
   const startXRef = useRef(0)
   const startWidthRef = useRef(0)
+  const sidebarListRef = useRef<HTMLDivElement>(null)
+  const sidebarScrollTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   /**
    * Scroll-spy: figure out which TOC entry is currently being read by comparing each
@@ -389,6 +391,17 @@ const ReaderView: React.FC = () => {
     renditionRef.current?.display(href)
   }
 
+  /** Show the sidebar scrollbar only while the user is actively scrolling the TOC. */
+  const handleSidebarScroll = () => {
+    const el = sidebarListRef.current
+    if (!el) return
+    el.classList.add('is-scrolling')
+    if (sidebarScrollTimerRef.current) clearTimeout(sidebarScrollTimerRef.current)
+    sidebarScrollTimerRef.current = setTimeout(() => {
+      el.classList.remove('is-scrolling')
+    }, 800)
+  }
+
   const handleAddToNotes = async () => {
     if (!selectionPopup || !currentBook) return
     await window.electronAPI.createNote({
@@ -424,26 +437,28 @@ const ReaderView: React.FC = () => {
       {sidebarOpen && (
         <>
           <div className="reader-sidebar" style={{ width: sidebarWidth }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+            <div className="reader-sidebar-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <h3 style={{ margin: 0 }}>目录</h3>
               <Tooltip title="收起目录">
                 <Button type="text" size="small" icon={<MenuFoldOutlined />} onClick={() => setSidebarOpen(false)} />
               </Tooltip>
             </div>
-            {flatToc.length === 0 && !loading && (
-              <div style={{ color: '#999', fontSize: 13 }}>此书无目录信息</div>
-            )}
-            {flatToc.map((item, idx) => (
-              <div
-                key={idx}
-                className={`toc-item ${item.href === activeTocHref ? 'active' : ''}`}
-                onClick={() => goToChapter(item.href)}
-                title={item.label}
-                style={{ paddingLeft: 12 + item.depth * 16 }}
-              >
-                {item.label.trim()}
-              </div>
-            ))}
+            <div className="reader-sidebar-list" ref={sidebarListRef} onScroll={handleSidebarScroll}>
+              {flatToc.length === 0 && !loading && (
+                <div style={{ color: '#999', fontSize: 13 }}>此书无目录信息</div>
+              )}
+              {flatToc.map((item, idx) => (
+                <div
+                  key={idx}
+                  className={`toc-item ${item.href === activeTocHref ? 'active' : ''}`}
+                  onClick={() => goToChapter(item.href)}
+                  title={item.label}
+                  style={{ paddingLeft: 12 + item.depth * 16 }}
+                >
+                  {item.label.trim()}
+                </div>
+              ))}
+            </div>
           </div>
           <div className="resize-handle" onMouseDown={(e) => startDrag('sidebar', e)} />
         </>

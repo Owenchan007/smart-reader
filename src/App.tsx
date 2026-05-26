@@ -5,7 +5,14 @@ import ReaderView from './components/Reader/ReaderView'
 import AppHeader from './components/AppHeader'
 
 const App: React.FC = () => {
-  const { view, setApiKey, setAiModel, setReaderSettings } = useStore()
+  const { view, readerSettings, setApiKey, setAiModel, setReaderSettings } = useStore()
+
+  // Propagate the reader theme to <body> so the chrome (sidebar, header, panels)
+  // can react via CSS instead of being hardcoded white.
+  useEffect(() => {
+    document.body.classList.remove('app-theme-light', 'app-theme-warm', 'app-theme-dark')
+    document.body.classList.add(`app-theme-${readerSettings.theme}`)
+  }, [readerSettings.theme])
 
   useEffect(() => {
     // Load saved settings on startup
