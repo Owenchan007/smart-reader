@@ -25,9 +25,13 @@ const ReaderView: React.FC = () => {
   const renditionRef = useRef<any>(null)
   const bookRef = useRef<any>(null)
   const [toc, setToc] = useState<Array<{ label: string; href: string; subitems?: any[] }>>([])
-  const [currentChapterHref, setCurrentChapterHref] = useState('')
+  const [activeTocHref, setActiveTocHref] = useState('')
   const [loading, setLoading] = useState(true)
   const tocRef = useRef<Array<{ label: string; href: string }>>([])
+  /** Map<section.href, iframe>: built incrementally on 'rendered' to scroll-spy across iframes. */
+  const sectionIframesRef = useRef(new Map<string, HTMLIFrameElement>())
+  const activeTocHrefRef = useRef('')
+  const scrollContainerRef = useRef<HTMLElement | null>(null)
 
   const [sidebarOpen, setSidebarOpen] = useState(true)
   const [sidebarWidth, setSidebarWidth] = useState(DEFAULT_SIDEBAR_WIDTH)
@@ -37,6 +41,69 @@ const ReaderView: React.FC = () => {
   const draggingRef = useRef<'sidebar' | 'right' | null>(null)
   const startXRef = useRef(0)
   const startWidthRef = useRef(0)
+
+  /**
+   * Scroll-spy: figure out which TOC entry is currently being read by comparing each
+   * anchor element's viewport-Y against a trigger line (~100px below the reader top).
+   * Handles sub-section accuracy: TOC entries with #anchor land on real DOM elements,
+   * entries without anchors fall back to the iframe's body.
+   */
+  const findActiveTocEntry = useCallback(() => {
+    const viewer = viewerRef.current
+    const flat = tocRef.current
+    if (!viewer || !flat.length || !sectionIframesRef.current.size) return
+
+    const triggerY = viewer.getBoundingClientRect().top + 100
+    let bestHref = ''
+    let bestLabel = ''
+    let bestTop = -Infinity
+
+    // Resolve TOC file href → iframe via the section map, tolerating path-prefix differences.
+    const findIframe = (file: string): HTMLIFrameElement | undefined => {
+      const map = sectionIframesRef.current
+      if (map.has(file)) return map.get(file)
+      const baseFile = file.split('/').pop() || file
+      for (const [secHref, iframe] of map.entries()) {
+        const baseSec = secHref.split('/').pop() || secHref
+        if (baseSec === baseFile) return iframe
+        if (secHref.endsWith(file) || file.endsWith(secHref)) return iframe
+      }
+      return undefined
+    }
+
+    for (const toc of flat) {
+      const [file, hash] = toc.href.split('#')
+      const iframe = findIframe(file)
+      const doc = iframe?.contentDocument
+      if (!iframe || !doc) continue
+
+      let element: Element | null = null
+      if (hash) {
+        element = doc.getElementById(hash) || doc.querySelector(`[name="${hash}"]`)
+      }
+      if (!element) element = doc.body
+      if (!element) continue
+
+      const elRect = element.getBoundingClientRect()
+      const iframeRect = iframe.getBoundingClientRect()
+      // iframe rect is viewport-relative; element rect is iframe-viewport-relative.
+      // Their tops add up to the element's effective viewport Y.
+      const elTop = iframeRect.top + elRect.top
+
+      // Pick the deepest anchor that has already scrolled past the trigger line.
+      if (elTop <= triggerY && elTop > bestTop) {
+        bestTop = elTop
+        bestHref = toc.href
+        bestLabel = toc.label || ''
+      }
+    }
+
+    if (bestHref && bestHref !== activeTocHrefRef.current) {
+      activeTocHrefRef.current = bestHref
+      setActiveTocHref(bestHref)
+      setStoreChapter(bestHref, bestLabel)
+    }
+  }, [setStoreChapter])
 
   const applyTheme = useCallback(() => {
     const rendition = renditionRef.current
@@ -139,15 +206,18 @@ const ReaderView: React.FC = () => {
         rendition.on('relocated', (location: any) => {
           if (location?.start?.cfi) {
             window.electronAPI.updateBookProgress(currentBook.id, location.start.cfi)
-            const href = location.start.href
-            if (href) {
-              setCurrentChapterHref(href)
-              const matches = tocRef.current.filter((t) => href.includes(t.href) || t.href.includes(href))
-              const match = matches.length > 0
-                ? matches.reduce((best, cur) => cur.href.length > best.href.length ? cur : best)
-                : undefined
-              setStoreChapter(href, match?.label || '')
-            }
+          }
+          // Active chapter highlight is driven by findActiveTocEntry on scroll, not here.
+        })
+
+        // Build section.href → iframe map as each spine item lands. The map is what
+        // lets findActiveTocEntry resolve TOC anchors to real DOM nodes.
+        rendition.on('rendered', (section: any, view: any) => {
+          const iframe = view?.iframe || view?.window?.frameElement
+          if (iframe && section?.href) {
+            sectionIframesRef.current.set(section.href, iframe)
+            // Defer: iframe content may still be settling (fonts, images).
+            setTimeout(findActiveTocEntry, 200)
           }
         })
 
@@ -193,6 +263,9 @@ const ReaderView: React.FC = () => {
       renditionRef.current = null
       bookRef.current?.destroy()
       bookRef.current = null
+      sectionIframesRef.current.clear()
+      activeTocHrefRef.current = ''
+      setActiveTocHref('')
     }
   }, [currentBook])
 
@@ -221,9 +294,56 @@ const ReaderView: React.FC = () => {
   // Resize rendition when sidebar or right panel toggles
   useEffect(() => {
     // Small delay to let CSS layout settle before epubjs recalculates
-    const timer = setTimeout(() => renditionRef.current?.resize(), 50)
+    const timer = setTimeout(() => {
+      renditionRef.current?.resize()
+      findActiveTocEntry()
+    }, 50)
     return () => clearTimeout(timer)
-  }, [sidebarOpen, rightPanel])
+  }, [sidebarOpen, rightPanel, findActiveTocEntry])
+
+  // Scroll-spy: attach a scroll listener to whatever epubjs uses as its scroll
+  // container, throttle via rAF, and recompute the active TOC entry as the user reads.
+  useEffect(() => {
+    if (loading || !viewerRef.current) return
+
+    const findScrollableEl = (): HTMLElement | null => {
+      const container = viewerRef.current!.querySelector('.epub-container') as HTMLElement | null
+      if (container && container.scrollHeight > container.clientHeight) return container
+      const viewer = viewerRef.current!
+      if (viewer.scrollHeight > viewer.clientHeight) return viewer
+      return container || viewer
+    }
+
+    let raf = 0
+    let cleanup: (() => void) | null = null
+
+    const timer = setTimeout(() => {
+      const el = findScrollableEl()
+      if (!el) return
+      scrollContainerRef.current = el
+      const onScroll = () => {
+        cancelAnimationFrame(raf)
+        raf = requestAnimationFrame(findActiveTocEntry)
+      }
+      el.addEventListener('scroll', onScroll, { passive: true })
+      findActiveTocEntry() // initial run after first paint
+      cleanup = () => {
+        el.removeEventListener('scroll', onScroll)
+        cancelAnimationFrame(raf)
+      }
+    }, 500)
+
+    return () => {
+      clearTimeout(timer)
+      cleanup?.()
+    }
+  }, [loading, findActiveTocEntry])
+
+  // Re-run scroll-spy when theme/font changes — layout shifts can move anchors.
+  useEffect(() => {
+    const t = setTimeout(findActiveTocEntry, 300)
+    return () => clearTimeout(t)
+  }, [readerSettings, findActiveTocEntry])
 
   // Drag resize — use document-level listeners
   useEffect(() => {
@@ -316,7 +436,7 @@ const ReaderView: React.FC = () => {
             {flatToc.map((item, idx) => (
               <div
                 key={idx}
-                className={`toc-item ${(currentChapterHref.includes(item.href.split('#')[0]) || item.href.includes(currentChapterHref)) && currentChapterHref ? 'active' : ''}`}
+                className={`toc-item ${item.href === activeTocHref ? 'active' : ''}`}
                 onClick={() => goToChapter(item.href)}
                 title={item.label}
                 style={{ paddingLeft: 12 + item.depth * 16 }}
