@@ -43,6 +43,8 @@ const ReaderView: React.FC = () => {
   const startWidthRef = useRef(0)
   const sidebarListRef = useRef<HTMLDivElement>(null)
   const sidebarScrollTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  /** Throttle prev/next nav triggered by wheel-at-edge so kinetic scroll doesn't fire it repeatedly. */
+  const lastEdgeNavRef = useRef(0)
 
   /**
    * Scroll-spy: figure out which TOC entry is currently being read by comparing each
@@ -230,6 +232,19 @@ const ReaderView: React.FC = () => {
             sectionIframesRef.current.set(section.href, iframe)
             // Defer: iframe content may still be settling (fonts, images).
             setTimeout(findActiveTocEntry, 200)
+
+            // epubjs continuous manager doesn't reliably prepend the previous
+            // section once scroll hits 0 (no scroll event fires beyond the top).
+            // Patch: when the user wheels up at the very top, manually call prev().
+            const doc = iframe.contentDocument
+            doc?.addEventListener('wheel', (e: WheelEvent) => {
+              if (e.deltaY >= 0) return
+              const container = viewerRef.current?.querySelector('.epub-container') as HTMLElement | null
+              if (!container || container.scrollTop > 5) return
+              if (Date.now() - lastEdgeNavRef.current < 800) return
+              lastEdgeNavRef.current = Date.now()
+              renditionRef.current?.prev()
+            }, { passive: true })
           }
         })
 
