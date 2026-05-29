@@ -12,11 +12,11 @@ interface ChatParams {
   apiKey: string
 }
 
-const API_URL = 'https://api.lkeap.cloud.tencent.com/coding/v3/chat/completions'
+const API_URL = 'https://api.deepseek.com/chat/completions'
 
 /** Non-streaming AI call for background tasks (export, etc.) */
 export async function chatWithAISimple(params: ChatParams): Promise<string> {
-  const { messages, model = 'hunyuan-turbos', apiKey } = params
+  const { messages, model = 'deepseek-chat', apiKey } = params
 
   const fetchFn = net.fetch ?? globalThis.fetch
   const response = await fetchFn(API_URL, {
@@ -44,7 +44,7 @@ export async function chatWithAISimple(params: ChatParams): Promise<string> {
 }
 
 export async function chatWithAIStream(params: ChatParams): Promise<string> {
-  const { messages, model = 'hunyuan-turbos', apiKey } = params
+  const { messages, model = 'deepseek-chat', apiKey } = params
   const win = BrowserWindow.getFocusedWindow() || BrowserWindow.getAllWindows()[0]
 
   console.log('[AI] Sending stream request, model:', model, 'messages:', messages.length)

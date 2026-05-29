@@ -12,12 +12,17 @@ interface Props {
   bookId: number
 }
 
+/**
+ * Approximate character budget per model for "send the whole book" mode.
+ * Conservative: leaves headroom for system prompt + conversation history.
+ * DeepSeek: deepseek-chat / reasoner have 128K-token context (~200K chars);
+ * v4 line has 1M-token context.
+ */
 const MODEL_CHAR_LIMITS: Record<string, number> = {
-  'kimi-k2.5': 200000,
-  'hunyuan-2.0-thinking': 60000,
-  'hunyuan-turbos': 28000,
-  'glm-4-plus': 100000,
-  'minimax': 80000,
+  'deepseek-chat':      200000,
+  'deepseek-reasoner':  200000,
+  'deepseek-v4-flash':  800000,
+  'deepseek-v4-pro':    800000,
 }
 
 const MarkdownBubble: React.FC<{ content: string }> = ({ content }) => (
@@ -40,7 +45,7 @@ const ChatPanel: React.FC<Props> = ({ bookId }) => {
   const userScrolledUpRef = useRef(false)
   const streamingRef = useRef('')
 
-  const charLimit = MODEL_CHAR_LIMITS[aiModel] || 28000
+  const charLimit = MODEL_CHAR_LIMITS[aiModel] || 200000
   const isShortBook = bookText.length <= charLimit
 
   useEffect(() => {
@@ -254,7 +259,7 @@ const ChatPanel: React.FC<Props> = ({ bookId }) => {
         const chapterText = chapterChunks.map((c) => c.content).join('')
         if (!chapterText.trim()) return
 
-        const maxChars = (MODEL_CHAR_LIMITS[aiModel] || 28000) - 3000
+        const maxChars = (MODEL_CHAR_LIMITS[aiModel] || 200000) - 3000
         const trimmedText = chapterText.slice(0, maxChars)
 
         const bookTitle = currentBook?.title || '未知书名'

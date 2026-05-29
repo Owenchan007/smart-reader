@@ -83,7 +83,7 @@ const AppHeader: React.FC = () => {
               setApiKey(e.target.value)
               handleSaveSetting('apiKey', e.target.value)
             }}
-            placeholder="请输入腾讯云 Coding Plan API Key"
+            placeholder="请输入 DeepSeek API Key"
           />
         </div>
 
@@ -97,11 +97,10 @@ const AppHeader: React.FC = () => {
             }}
             style={{ width: '100%' }}
             options={[
-              { label: 'Hunyuan Turbos (快速响应)', value: 'hunyuan-turbos' },
-              { label: 'Hunyuan 2.0 Thinking (深度推理)', value: 'hunyuan-2.0-thinking' },
-              { label: 'Kimi K2.5 (长文本)', value: 'kimi-k2.5' },
-              { label: 'GLM-4 Plus', value: 'glm-4-plus' },
-              { label: 'MiniMax', value: 'minimax' },
+              { label: 'DeepSeek Chat (通用对话)', value: 'deepseek-chat' },
+              { label: 'DeepSeek Reasoner (深度推理)', value: 'deepseek-reasoner' },
+              { label: 'DeepSeek V4 Flash (新版快速)', value: 'deepseek-v4-flash' },
+              { label: 'DeepSeek V4 Pro (新版高级)', value: 'deepseek-v4-pro' },
             ]}
           />
         </div>

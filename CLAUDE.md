@@ -31,7 +31,7 @@ Electron 桌面应用，三进程架构：
 | 服务 | 职责 |
 |------|------|
 | `db.ts` | SQLite (WAL 模式)，表：books, chunks, notes, conversations, settings |
-| `ai-client.ts` | OpenAI 兼容 API (腾讯云)，流式 (`chatWithAIStream`) + 非流式 (`chatWithAISimple`) |
+| `ai-client.ts` | DeepSeek API (`https://api.deepseek.com`，OpenAI 兼容)，流式 (`chatWithAIStream`) + 非流式 (`chatWithAISimple`) |
 | `epub-parser.ts` | JSZip 解压 EPUB，提取元数据/封面/章节内容，生成可检索文本块 |
 | `obsidian-export.ts` | 生成 Markdown 文件导出到 Obsidian 知识库 |
 

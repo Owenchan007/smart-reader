@@ -38,7 +38,7 @@
 - 短书全文载入，长书智能检索相关章节
 - 一键提炼全书框架、总结当前章节
 - 流式输出，实时显示回答
-- 支持混元 / Kimi / GLM / MiniMax 等模型
+- 接入 DeepSeek（Chat / Reasoner / V4 Flash / V4 Pro）
 
 </td>
 </tr>
@@ -70,7 +70,7 @@
 | 框架 | Electron + React + TypeScript |
 | 构建 | Vite + electron-builder |
 | EPUB 渲染 | epub.js |
-| AI 接口 | OpenAI 兼容接口（腾讯云 Coding Plan 等） |
+| AI 接口 | DeepSeek API（OpenAI 兼容协议） |
 | 数据库 | better-sqlite3 |
 | UI 组件 | Ant Design |
 | 状态管理 | Zustand |

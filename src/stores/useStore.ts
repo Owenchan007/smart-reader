@@ -66,7 +66,7 @@ export const useStore = create<AppState>((set) => ({
   apiKey: '',
   setApiKey: (apiKey) => set({ apiKey }),
 
-  aiModel: 'hunyuan-turbos',
+  aiModel: 'deepseek-chat',
   setAiModel: (aiModel) => set({ aiModel }),
 
   currentChapter: '',
