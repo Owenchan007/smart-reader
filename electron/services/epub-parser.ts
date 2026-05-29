@@ -148,11 +148,15 @@ export async function extractEpubContent(filePath: string): Promise<{
   const spineMatches = [...opfXml.matchAll(/<itemref[^>]*idref="([^"]+)"/gi)]
   const spineIds = spineMatches.map(m => m[1])
 
-  // Build id->href map from manifest
-  const manifestItems = [...opfXml.matchAll(/<item[^>]*id="([^"]+)"[^>]*href="([^"]+)"[^>]*/gi)]
+  // Build id->href map from manifest. Don't assume attribute order — Calibre and
+  // some other tools emit <item href="..." id="..."/>, which a fixed-order regex misses
+  // and the whole spine extraction silently produces zero chunks.
+  const itemTags = opfXml.match(/<item\b[^>]*\/?>/gi) || []
   const idToHref: Record<string, string> = {}
-  for (const m of manifestItems) {
-    idToHref[m[1]] = m[2]
+  for (const tag of itemTags) {
+    const id = tag.match(/\bid="([^"]+)"/i)?.[1]
+    const href = tag.match(/\bhref="([^"]+)"/i)?.[1]
+    if (id && href) idToHref[id] = href
   }
 
   const chunks: Array<{ chapter: string; content: string; position: number }> = []

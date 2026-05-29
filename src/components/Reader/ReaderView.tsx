@@ -209,7 +209,17 @@ const ReaderView: React.FC = () => {
           if (location?.start?.cfi) {
             window.electronAPI.updateBookProgress(currentBook.id, location.start.cfi)
           }
-          // Active chapter highlight is driven by findActiveTocEntry on scroll, not here.
+          // Baseline chapter for ChatPanel buttons (总结当前章节 / 章节知识提问) —
+          // scroll-spy refines this once anchors scroll past the trigger line, but
+          // we need *some* label as soon as the book opens or the user jumps via TOC.
+          const href = location?.start?.href
+          if (href) {
+            const baseline =
+              tocRef.current.find((t) => t.href === href)
+              ?? tocRef.current.find((t) => t.href.split('#')[0] === href)
+              ?? tocRef.current.find((t) => href.includes(t.href.split('#')[0]))
+            if (baseline) setStoreChapter(baseline.href, baseline.label || '')
+          }
         })
 
         // Build section.href → iframe map as each spine item lands. The map is what
